@@ -8,7 +8,8 @@ namespace orderbook {
 OrderBook::OrderBook() {
   _bid_side = std::make_shared<PricePointContainer>(BUY, this);
   _sell_side = std::make_shared<PricePointContainer>(SELL, this);
-  _map_global_order.clear();
+  _map_active_order.clear();
+  _map_all_order.clear();
 }
 
 bool OrderBook::AggressBook(std::shared_ptr<Order> order_ptr) {
@@ -17,14 +18,15 @@ bool OrderBook::AggressBook(std::shared_ptr<Order> order_ptr) {
 }
 
 bool OrderBook::AddOrder(std::shared_ptr<Order> order_ptr) {
-  auto itr = _map_global_order.find(order_ptr->GetOrderId());
-  if (itr != _map_global_order.end()) {
+  auto itr = _map_all_order.find(order_ptr->GetOrderId());
+  if (itr != _map_all_order.end()) {
     std::cout << "OrderBook::AddOrder Reject!, Duplicate order Id[" << order_ptr->GetOrderId() << "]" << std::endl;
     return false;
   }
+  _map_all_order[order_ptr->GetOrderId()] = order_ptr;
   AggressBook(order_ptr);
   if (order_ptr->GetLeavesQuantity() > 0) {
-    _map_global_order[order_ptr->GetOrderId()] = order_ptr;
+    _map_active_order[order_ptr->GetOrderId()] = order_ptr;
     auto book_side = (order_ptr->GetSide() == BUY) ? _bid_side : _sell_side;
     book_side->AddOrder(order_ptr.get());
   }
@@ -32,14 +34,14 @@ bool OrderBook::AddOrder(std::shared_ptr<Order> order_ptr) {
 }
 
 bool OrderBook::AmendOrder(std::shared_ptr<Order> amend) {
-  auto itr = _map_global_order.find(amend->GetOrderId());
-  if (itr == _map_global_order.end()) {
+  auto itr = _map_active_order.find(amend->GetOrderId());
+  if (itr == _map_active_order.end()) {
     std::cout << "OrderBook::AmendOrder AmendReject!, Order not found[" << amend->GetOrderId() << "]" << std::endl;
     return false;
   }
   auto org_order = itr->second;
-  if (org_order->GetSize() == amend->GetSize()) {
-    std::cout << "OrderBook::AmendOrder AmendReject!, Order same as org order" << std::endl;
+  if ( (!(amend->GetSize() > 0)) ||(org_order->GetSize() == amend->GetSize())) {
+    std::cout << "OrderBook::AmendOrder AmendReject!, Invalid order size" << std::endl;
     return false;
   }
   auto book_side = (org_order->GetSide() == BUY) ? _bid_side : _sell_side;
@@ -47,20 +49,20 @@ bool OrderBook::AmendOrder(std::shared_ptr<Order> amend) {
 }
 
 bool OrderBook::CancelOrder(std::shared_ptr<Order> order_ptr) {
-  auto itr = _map_global_order.find(order_ptr->GetOrderId());
-  if (itr == _map_global_order.end()) {
+  auto itr = _map_active_order.find(order_ptr->GetOrderId());
+  if (itr == _map_active_order.end()) {
     std::cout << "OrderBook::CancelOrder CancelReject!, Order not found[" << order_ptr->GetOrderId() << "]" << std::endl;
     return false;
   }
   auto org_order = itr->second;
-  _map_global_order.erase(order_ptr->GetOrderId());
+  _map_active_order.erase(order_ptr->GetOrderId());
   auto book_side = (org_order->GetSide() == BUY) ? _bid_side : _sell_side;
   return book_side->CancelOrder(org_order.get());
 }
 
 bool OrderBook::QueryOrder(std::string order_id) {
-  auto itr = _map_global_order.find(order_id);
-  if (itr == _map_global_order.end()) {
+  auto itr = _map_all_order.find(order_id);
+  if (itr == _map_all_order.end()) {
     std::cout << "OrderBook::Query Order Rejected!, Order not found[" << order_id << "]" << std::endl;
     return false;
   }
@@ -92,13 +94,16 @@ void OrderBook::OnExecutedOrder(Order *aggressor, Order *order) {
 
   std::cout << "ExecType[TRADED], " << order
             << ", Exec Price[" << order->GetExecutedPrice() << "], Exec Size[" << order->GetExecutedSize() << "]" << std::endl;
+  if(order->GetStatus() == OS_FILLED){
+    _map_active_order.erase(order->GetOrderId());
+  }
 }
 
 void OrderBook::PrintOrderQuery(Order *order, int level) {
-  if (level >= 0) {
-    std::cout << order->GetOrderId() << ", " << level << ", " << ", " << Util::GetOrderStatusStr(order->GetStatus()) << ", " << order->GetPrice() << ", " << order->GetLeavesQuantity() << std::endl;
+  if ((order->GetLeavesQuantity()>0) && level >= 0) {
+    std::cout << order->GetOrderId() << ", " << level <<  ", " << Util::GetOrderStatusStr(order->GetStatus()) << ", " << order->GetPrice() << ", " << order->GetLeavesQuantity() << std::endl;
   } else {
-    std::cout << "Query Update : invalid position found!" << std::endl;
+    std::cout << order->GetOrderId() << ", " << -1  << ", " << Util::GetOrderStatusStr(order->GetStatus()) << ", " << order->GetPrice() << ", " << order->GetLeavesQuantity() << std::endl;
   }
 }
 

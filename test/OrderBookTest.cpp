@@ -99,7 +99,21 @@ BOOST_AUTO_TEST_SUITE(orderbook_suite)
         book.QueryPricePoint(SELL, 1);
         book.QueryPricePoint(SELL, 2);
         book.PrintBook();
-}
+    }
+    BOOST_AUTO_TEST_CASE(cancel_or_amend_terminated_order)
+    {
+        OrderBook book;
+        BOOST_EXPECT_TRUE(book.AddOrder(CreateOrder("order1", SELL, 100, 10.05)));
+        BOOST_EXPECT_TRUE(book.AddOrder(CreateOrder("order2", SELL, 200, 10.55)));
+        BOOST_EXPECT_TRUE(book.AddOrder(CreateOrder("order4", BUY, 100, 10.05)));
+        BOOST_EXPECT_FALSE(book.AmendOrder(CreateOrder("order1", SELL, 50, 10.05)));
+        BOOST_EXPECT_FALSE(book.CancelOrder(CreateOrder("order1", SELL, 50, 10.05)));
+        BOOST_EXPECT_TRUE(book.QueryOrder("order1"));
+
+        book.PrintBook();
+    }
+
+
 
 
 

@@ -27,6 +27,7 @@ private:
   void PrintOrderQuery(Order *order, int level);
   std::shared_ptr<PricePointContainer> _bid_side;
   std::shared_ptr<PricePointContainer> _sell_side;
-  std::map<std::string, std::shared_ptr<Order>> _map_global_order;
+  std::map<std::string, std::shared_ptr<Order>> _map_active_order;
+  std::map<std::string, std::shared_ptr<Order>> _map_all_order;
 };
 }; // namespace orderbook
